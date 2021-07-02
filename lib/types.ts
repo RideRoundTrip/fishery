@@ -10,6 +10,7 @@ export type GeneratorFnOptions<T, I> = {
   sequence: number;
   afterBuild: (fn: HookFn<T>) => any;
   onCreate: (fn: CreateFn<T>) => any;
+  onBulkCreate?: (fn: CreateFn<T>) => any;
   params: DeepPartial<T>;
   associations: Partial<T>;
   transientParams: Partial<I>;
@@ -20,4 +21,5 @@ export type CreateFn<T> = (object: T) => Promise<T>;
 export type BuildOptions<T, I> = {
   associations?: Partial<T>;
   transient?: Partial<I>;
+  bulkCreate?: boolean;
 };

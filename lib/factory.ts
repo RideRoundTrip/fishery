@@ -17,6 +17,7 @@ export class Factory<T, I = any> {
 
   private _afterBuilds: HookFn<T>[] = [];
   private _onCreates: CreateFn<T>[] = [];
+  private _onBulkCreates: CreateFn<T[]>[] = [];
   private _associations: Partial<T> = {};
   private _params: DeepPartial<T> = {};
   private _transient: Partial<I> = {};
@@ -78,12 +79,31 @@ export class Factory<T, I = any> {
     params: DeepPartial<T> = {},
     options: BuildOptions<T, I> = {},
   ): Promise<T[]> {
-    let list: Promise<T>[] = [];
-    for (let i = 0; i < number; i++) {
-      list.push(this.create(params, options));
-    }
+    if (options.bulkCreate) {
+      const objects = this.buildList(number, params, options);
+      return this._callOnBulkCreates(objects)
+    } else  {
+      let list: Promise<T>[] = [];
+      for (let i = 0; i < number; i++) {
+        list.push(this.create(params, options));
+      }
 
-    return Promise.all(list);
+      return Promise.all(list);
+    }
+  }
+
+  _callOnBulkCreates(objects: T[]): Promise<T[]> {
+    let created = Promise.resolve(objects);
+
+    this._onBulkCreates.forEach(onBulkCreate => {
+      if (typeof onBulkCreate === 'function') {
+        created = created.then(onBulkCreate);
+      } else {
+        throw new Error('"onBulkCreate" must be a function');
+      }
+    });
+
+    return created;
   }
 
   /**
@@ -105,6 +125,17 @@ export class Factory<T, I = any> {
   onCreate(onCreateFn: CreateFn<T>): this {
     const factory = this.clone();
     factory._onCreates.push(onCreateFn);
+    return factory;
+  }
+
+  /**
+   * Extend the factory by adding a function to be called on creation.
+   * @param onCreateFn - The function to call. IT accepts your object of type T. The value this function returns gets returned from "create"
+   * @return a new factory
+   */
+  onBulkCreate(onCreateFn: CreateFn<T[]>): this {
+    const factory = this.clone();
+    factory._onBulkCreates.push(onCreateFn);
     return factory;
   }
 
@@ -174,6 +205,7 @@ export class Factory<T, I = any> {
       { ...this._associations, ...options.associations },
       this._afterBuilds,
       this._onCreates,
+      this._onBulkCreates,
     );
   }
 }

@@ -17,6 +17,7 @@ export class FactoryBuilder<T, I> {
     private associations: Partial<T>,
     private afterBuilds: HookFn<T>[],
     private onCreates: CreateFn<T>[],
+    private onBulkCreates: CreateFn<T>[],
   ) {}
 
   build() {
