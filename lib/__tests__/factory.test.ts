@@ -84,17 +84,68 @@ describe('factory.createList', () => {
       return Promise.resolve(user);
     });
 
+    const onBulkCreateFn = jest.fn(async users => {
+      users.every((user: { name: string; }) => user.name = 'Bill')
+      return Promise.resolve(users);
+    });
+
     const factory = Factory.define<User>(({ onCreate }) => {
       onCreate(onCreateFn);
       return { id: '1', name: 'Ralph' };
     });
 
-    const promise = factory.createList(2, { name: 'susan' });
+    const bulkUserFactory = factory.onBulkCreate(onBulkCreateFn);
+
+    const promise = bulkUserFactory.createList(2, { name: 'susan' });
     expect(promise).toBeInstanceOf(Promise);
 
     const users = await promise;
     expect(users.every(u => u.name === 'Bill')).toBeTruthy();
     expect(onCreateFn).toHaveBeenCalledTimes(2);
+    expect(onBulkCreateFn).toHaveBeenCalledTimes(0);
+  });
+
+  it('calls onBulkCreate function if bulkCreate value passed true in options', async () => {
+    const onCreateFn = jest.fn(user => {
+      return Promise.resolve(user);
+    });
+
+    const onBulkCreateFn = jest.fn(async users => {
+      users.every((user: { name: string; }) => user.name = 'Bill')
+      return Promise.resolve(users);
+    });
+
+    const bulkUserFactory = userFactory.onBulkCreate(onBulkCreateFn).onCreate(onCreateFn);
+
+    const promise = bulkUserFactory.createList(2, { name: 'susan' }, { bulkCreate: true });
+    expect(promise).toBeInstanceOf(Promise);
+
+    const users = await promise;
+
+    expect(users.every(u => u.name === 'Bill')).toBeTruthy();
+    expect(onCreateFn).toHaveBeenCalledTimes(0);
+    expect(onBulkCreateFn).toHaveBeenCalledTimes(1);
+    expect(onBulkCreateFn).toHaveBeenCalledWith(
+      [
+        {
+          "address": {
+            "city": "Detroit",
+            "state": "MI"
+          },
+          "id": users[0].id,
+          "name": "Bill"
+        },
+        {
+          "address": {
+            "city": "Detroit",
+            "state": "MI"
+          },
+          "id": users[1].id,
+          "name": "Bill"
+        },
+        
+      ]
+    )
   });
 });
 
@@ -148,6 +199,56 @@ describe('onCreate', () => {
       });
 
       return expect(factory.create()).rejects.toThrowError(
+        /must be a function/,
+      );
+    });
+  });
+});
+
+describe('onBulkCreate', () => {
+  it('passes the object for manipulation', async () => {
+    const onBulkCreateFn = jest.fn(async users => {
+      users.every((user: { name: string; }) => user.name = 'Bill')
+      return Promise.resolve(users);
+    });
+
+    const bulkUserFactory = userFactory.onBulkCreate(onBulkCreateFn);
+
+    const promise = bulkUserFactory.createList(2, { name: 'susan' }, { bulkCreate: true });
+    expect(promise).toBeInstanceOf(Promise);
+
+    const users = await promise;
+
+    expect(users.every(u => u.name === 'Bill')).toBeTruthy();
+    expect(onBulkCreateFn).toHaveBeenCalledTimes(1);
+    expect(onBulkCreateFn).toHaveBeenCalledWith(
+      [
+        {
+          "address": {
+            "city": "Detroit",
+            "state": "MI"
+          },
+          "id": users[0].id,
+          "name": "Bill"
+        },
+        {
+          "address": {
+            "city": "Detroit",
+            "state": "MI"
+          },
+          "id": users[1].id,
+          "name": "Bill"
+        },
+        
+      ]
+    )
+  });
+
+  describe('when not a function', () => {
+    it('raises an error', () => {
+      const bulkUserFactory = userFactory.onBulkCreate(('5' as unknown) as CreateFn<User[]>);
+
+      return expect(bulkUserFactory.createList(2, {}, { bulkCreate: true })).rejects.toThrowError(
         /must be a function/,
       );
     });
